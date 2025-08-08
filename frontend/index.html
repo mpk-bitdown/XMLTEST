@@ -44,41 +44,8 @@
       <!-- Global filter controls (applied to all tables and charts) -->
       <div class="row gy-3 mb-4" id="globalFilters">
         <div class="col-12 col-md-3">
-          <label class="form-label">Proveedor:</label>
-          <div id="supplierFilter" class="position-relative">
-            <!-- Button to open the supplier filter menu -->
-            <button type="button" id="supplierFilterBtn" class="form-select d-flex justify-content-between align-items-center">
-              <span id="supplierFilterText">Todos</span>
-              <span class="ms-2">&#9662;</span>
-            </button>
-            <!-- Supplier filter dropdown menu -->
-            <div id="supplierFilterMenu" class="border bg-white p-2" style="position:absolute;top:100%;left:0;z-index:1000;min-width:100%;display:none;max-height:200px;overflow-y:auto;">
-              <div class="form-check">
-                <input class="form-check-input" type="checkbox" id="supplierSelectAll" checked />
-                <label class="form-check-label" for="supplierSelectAll">(Seleccionar todo)</label>
-              </div>
-              <input type="text" id="supplierSearchInput" class="form-control form-control-sm mb-2" placeholder="Buscar proveedor" />
-              <div id="supplierOptions"></div>
-            </div>
-          </div>
-        </div>
-        <!-- Document type filter -->
-        <div class="col-12 col-md-3">
-          <label class="form-label">Tipo de documento:</label>
-          <div id="docTypeFilter" class="position-relative">
-            <button type="button" id="docTypeFilterBtn" class="form-select d-flex justify-content-between align-items-center">
-              <span id="docTypeFilterText">Todos</span>
-              <span class="ms-2">&#9662;</span>
-            </button>
-            <div id="docTypeFilterMenu" class="border bg-white p-2" style="position:absolute;top:100%;left:0;z-index:1000;min-width:100%;display:none;max-height:200px;overflow-y:auto;">
-              <div class="form-check">
-                <input class="form-check-input" type="checkbox" id="docTypeSelectAll" checked />
-                <label class="form-check-label" for="docTypeSelectAll">(Seleccionar todo)</label>
-              </div>
-              <input type="text" id="docTypeSearchInput" class="form-control form-control-sm mb-2" placeholder="Buscar tipo" />
-              <div id="docTypeOptions"></div>
-            </div>
-          </div>
+          <label for="supplierSelect" class="form-label">Proveedor:</label>
+          <select id="supplierSelect" class="form-select"></select>
         </div>
         <div class="col-12 col-md-3">
           <label for="startMonth" class="form-label">Desde (mes):</label>
@@ -115,7 +82,7 @@
             </div>
           </div>
         </div>
-        <!-- Documents list card -->
+        <!-- Documents table card -->
         <div class="col-12 col-lg-8">
           <div class="card shadow-sm">
             <div class="card-header d-flex justify-content-between align-items-center bg-primary text-white">
@@ -125,20 +92,36 @@
                 <button id="exportCsvBtn" class="btn btn-outline-light btn-sm">Descargar CSV</button>
               </div>
             </div>
-            <!-- List container for documents -->
-            <div id="docs-list" class="list-group list-group-flush"></div>
+            <div class="table-responsive">
+              <table id="docs-table" class="table table-striped table-hover mb-0">
+                <thead class="table-light">
+                  <tr>
+                    <th scope="col">Seleccionar</th>
+                    <th scope="col">Proveedor</th>
+                    <th scope="col">Tipo</th>
+                    <th scope="col">Tamaño (KB)</th>
+                    <th scope="col">Páginas / Etiqueta raíz</th>
+                    <th scope="col">RUT</th>
+                    <th scope="col">Factura N°</th>
+                    <th scope="col">Monto total</th>
+                    <th scope="col">Fecha</th>
+                    <th scope="col">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody id="docs-body"></tbody>
+              </table>
+            </div>
             <!-- Pagination controls -->
             <div class="d-flex justify-content-between align-items-center p-2">
               <div>
                 Mostrar
                 <select id="itemsPerPageSelect" class="form-select form-select-sm d-inline-block" style="width: auto;">
                   <option value="5" selected>5</option>
-                  <option value="10">10</option>
-                  <option value="25">25</option>
-                  <option value="50">50</option>
+                  <option value="20">20</option>
+                  <option value="30">30</option>
                   <option value="100">100</option>
                 </select>
-                documentos
+                por página
               </div>
               <div class="d-flex align-items-center gap-2">
                 <button id="prevPageBtn" class="btn btn-outline-secondary btn-sm">Anterior</button>
@@ -196,28 +179,6 @@
             </div>
           </div>
         </div>
-
-      <!-- Manual product category assignment card -->
-      <div class="col-12">
-        <div class="card shadow-sm mt-4">
-          <div class="card-header bg-primary text-white">Asignar categorías a productos</div>
-          <div class="card-body">
-            <p class="mb-3">Seleccione uno o varios productos y asigne una categoría manualmente. Esto ayudará al sistema a aprender y categorizar productos automáticamente en el futuro.</p>
-            <div class="row">
-              <div class="col-md-6 mb-3">
-                <label for="categoryProductSearch" class="form-label">Buscar productos:</label>
-                <input type="text" id="categoryProductSearch" class="form-control" placeholder="Filtrar productos" />
-                <div id="categoryProductList" class="border mt-2 p-2" style="max-height: 250px; overflow-y: auto;"></div>
-              </div>
-              <div class="col-md-6 mb-3">
-                <label for="categorySelect" class="form-label">Seleccionar categoría:</label>
-                <select id="categorySelect" class="form-select mb-3"></select>
-                <button id="assignCategoryBtn" type="button" class="btn btn-success">Asignar categoría</button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
       </div>
     </div>
     <!-- Local Chart.js copy to ensure availability offline -->

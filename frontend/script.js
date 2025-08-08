@@ -4,7 +4,7 @@
 // certain security restrictions on some systems.
 const API_BASE_URL = "http://127.0.0.1:5000/api";
 
-// Pagination state for documents list
+// Pagination state for documents table
 let allDocuments = [];
 let currentPage = 1;
 let itemsPerPage = 5;
@@ -19,19 +19,6 @@ Chart.defaults.plugins.legend.position = 'bottom';
 
 let productChart = null;
 let categoryChart = null;
-
-// Supplier data and selection for Excel-like provider filter
-let suppliersData = [];
-let selectedSupplierIds = new Set();
-
-// Document types data and selection for type filter
-let docTypesData = [];
-let selectedDocTypes = new Set();
-
-// Product data for manual category assignment
-let productsData = [];
-// Set of product names selected for manual categorisation
-let selectedCategoryProducts = new Set();
 
 /**
  * Fetch AI insights (suggestions and projections) and display them in the dashboard.
@@ -78,7 +65,7 @@ function renderDocumentsPage() {
   const start = (currentPage - 1) * itemsPerPage;
   const end = start + itemsPerPage;
   const docsToShow = allDocuments.slice(start, end);
-  renderDocumentList(docsToShow);
+  renderDocumentTable(docsToShow);
   updatePaginationControls();
 }
 
@@ -135,20 +122,13 @@ async function exportSelectedToCsv() {
   const ids = Array.from(checkboxes).map((cb) => parseInt(cb.value));
   try {
     // Build query string based on global filters only when no ids (exporting all filtered)
-    // Build filters: supplier IDs and document types are derived from selection sets
+    const supplier = document.getElementById("supplierSelect").value;
     const start = document.getElementById("startMonth").value;
     const end = document.getElementById("endMonth").value;
     const params = new URLSearchParams();
     if (!ids.length) {
       // Only attach filters when exporting full list (ids empty)
-      // Supplier filter: send comma‑separated ids when not all selected
-      if (selectedSupplierIds.size > 0 && selectedSupplierIds.size !== suppliersData.length) {
-        params.append('supplier', Array.from(selectedSupplierIds).join(','));
-      }
-      // Document type filter: send comma‑separated doc types when not all selected
-      if (selectedDocTypes.size > 0 && selectedDocTypes.size !== docTypesData.length) {
-        params.append('type', Array.from(selectedDocTypes).join(','));
-      }
+      if (supplier) params.append("supplier", supplier);
       if (start) params.append("start", start);
       if (end) params.append("end", end);
     }
@@ -182,8 +162,6 @@ document.addEventListener("DOMContentLoaded", () => {
   loadDocuments();
   // Load suppliers for filter
   loadSuppliers();
-  // Load available document types for filter
-  loadDocumentTypes();
   // Load initial product and category charts
   loadProductChart();
   loadCategoryChart();
@@ -288,118 +266,25 @@ document.addEventListener("DOMContentLoaded", () => {
     loadProductChart();
   });
 
-  // Assign category button handler
-  const assignBtn = document.getElementById('assignCategoryBtn');
-  if (assignBtn) {
-    assignBtn.addEventListener('click', assignSelectedCategory);
-  }
-
-  // Initialize manual category assignment lists and categories
-  loadProductsForAssignment();
-  loadCategoriesForSelect();
-
-  // Supplier filter dropdown toggle
-  const supplierBtn = document.getElementById('supplierFilterBtn');
-  const supplierMenu = document.getElementById('supplierFilterMenu');
-  if (supplierBtn && supplierMenu) {
-    supplierBtn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      const visible = supplierMenu.style.display === 'block';
-      supplierMenu.style.display = visible ? 'none' : 'block';
-    });
-    // Close menu when clicking outside
-    document.addEventListener('click', (e) => {
-      if (!supplierMenu.contains(e.target) && !supplierBtn.contains(e.target)) {
-        supplierMenu.style.display = 'none';
+  // Add click listeners to table headers for sorting
+  const headerCells = document.querySelectorAll("#docs-table thead th");
+  headerCells.forEach((th, idx) => {
+    // Skip first column (selection) and last column (actions)
+    if (idx === 0 || th.textContent.trim().toLowerCase().startsWith('acciones')) return;
+    th.style.cursor = 'pointer';
+    th.addEventListener('click', () => {
+      // Toggle sorting direction if same column clicked; otherwise default to ascending
+      if (docSortState.column === idx) {
+        docSortState.ascending = !docSortState.ascending;
+      } else {
+        docSortState.column = idx;
+        docSortState.ascending = true;
       }
+      sortDocumentsByColumn(idx, docSortState.ascending);
+      currentPage = 1;
+      renderDocumentsPage();
     });
-    // Handle select all checkbox
-    const selectAllBox = document.getElementById('supplierSelectAll');
-    if (selectAllBox) {
-      selectAllBox.addEventListener('change', () => {
-        if (selectAllBox.checked) {
-          // Select all suppliers
-          selectedSupplierIds = new Set(suppliersData.map((s) => s.id));
-        } else {
-          // Deselect all
-          selectedSupplierIds = new Set();
-        }
-        // Update individual checkboxes
-        suppliersData.forEach((s) => {
-          const cb = document.getElementById(`supplier_option_${s.id}`);
-          if (cb) cb.checked = selectedSupplierIds.has(s.id);
-        });
-        updateSupplierFilterText();
-        applySupplierFilter();
-      });
-    }
-    // Handle search filtering
-    const searchInput = document.getElementById('supplierSearchInput');
-    if (searchInput) {
-      searchInput.addEventListener('input', () => {
-        const term = searchInput.value.trim().toLowerCase();
-        suppliersData.forEach((s) => {
-          const div = document.getElementById(`supplier_option_${s.id}`)?.parentElement;
-          if (div) {
-            const match = s.name.toLowerCase().includes(term);
-            div.style.display = match ? '' : 'none';
-          }
-        });
-      });
-    }
-  }
-
-  // Document type filter dropdown toggle
-  const docTypeBtn = document.getElementById('docTypeFilterBtn');
-  const docTypeMenu = document.getElementById('docTypeFilterMenu');
-  if (docTypeBtn && docTypeMenu) {
-    docTypeBtn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      const visible = docTypeMenu.style.display === 'block';
-      docTypeMenu.style.display = visible ? 'none' : 'block';
-    });
-    // Close when clicking outside
-    document.addEventListener('click', (e) => {
-      if (!docTypeMenu.contains(e.target) && !docTypeBtn.contains(e.target)) {
-        docTypeMenu.style.display = 'none';
-      }
-    });
-    // Select all checkbox handler
-    const dtSelectAll = document.getElementById('docTypeSelectAll');
-    if (dtSelectAll) {
-      dtSelectAll.addEventListener('change', () => {
-        if (dtSelectAll.checked) {
-          selectedDocTypes = new Set(docTypesData);
-        } else {
-          selectedDocTypes = new Set();
-        }
-        // Update individual checkboxes
-        docTypesData.forEach((t) => {
-          const safeId = t.replace(/[^a-zA-Z0-9]/g, '_');
-          const cb = document.getElementById(`doctype_option_${safeId}`);
-          if (cb) cb.checked = selectedDocTypes.has(t);
-        });
-        updateDocTypeFilterText();
-        applyDocTypeFilter();
-      });
-    }
-    // Search filter for doc types
-    const dtSearchInput = document.getElementById('docTypeSearchInput');
-    if (dtSearchInput) {
-      dtSearchInput.addEventListener('input', () => {
-        const term = dtSearchInput.value.trim().toLowerCase();
-        docTypesData.forEach((t) => {
-          const safeId = t.replace(/[^a-zA-Z0-9]/g, '_');
-          const div = document.getElementById(`doctype_option_${safeId}`)?.parentElement;
-          if (div) {
-            const match = t.toLowerCase().includes(term);
-            div.style.display = match ? '' : 'none';
-          }
-        });
-      });
-    }
-  }
-
+  });
 });
 
 /**
@@ -408,31 +293,19 @@ document.addEventListener("DOMContentLoaded", () => {
 async function loadDocuments() {
   try {
     // Build query based on global filters
+    const supplier = document.getElementById("supplierSelect").value;
     const start = document.getElementById("startMonth").value;
     const end = document.getElementById("endMonth").value;
     const invoice = document.getElementById("invoiceInput").value.trim();
     const params = new URLSearchParams();
-    // Supplier filter: send comma-separated ids only when not all selected
-    if (selectedSupplierIds.size > 0 && selectedSupplierIds.size !== suppliersData.length) {
-      params.append('supplier', Array.from(selectedSupplierIds).join(','));
-    }
-    // Document type filter: send comma-separated types when not all selected
-    if (selectedDocTypes.size > 0 && selectedDocTypes.size !== docTypesData.length) {
-      params.append('type', Array.from(selectedDocTypes).join(','));
-    }
-    if (start) params.append('start', start);
-    if (end) params.append('end', end);
-    if (invoice) params.append('invoice', invoice);
-    const query = params.toString() ? `?${params.toString()}` : '';
+    if (supplier) params.append("supplier", supplier);
+    if (start) params.append("start", start);
+    if (end) params.append("end", end);
+    if (invoice) params.append("invoice", invoice);
+    const query = params.toString() ? `?${params.toString()}` : "";
     const response = await fetch(`${API_BASE_URL}/documents${query}`);
     const data = await response.json();
     allDocuments = data.documents || [];
-    // Sort documents by upload date descending for a consistent ordering
-    allDocuments.sort((a, b) => {
-      const adate = a.upload_date ? new Date(a.upload_date) : new Date(0);
-      const bdate = b.upload_date ? new Date(b.upload_date) : new Date(0);
-      return bdate - adate;
-    });
     // Reset pagination to first page when reloading data
     currentPage = 1;
     renderDocumentsPage();
@@ -685,12 +558,19 @@ async function loadSuppliers() {
   try {
     const response = await fetch(`${API_BASE_URL}/suppliers`);
     const data = await response.json();
-    suppliersData = data.suppliers || [];
-    // When suppliers are loaded, ensure selectedSupplierIds reflects all by default
-    if (selectedSupplierIds.size === 0) {
-      suppliersData.forEach((s) => selectedSupplierIds.add(s.id));
-    }
-    buildSupplierOptions();
+    const select = document.getElementById("supplierSelect");
+    select.innerHTML = "";
+    // Option for all suppliers
+    const optAll = document.createElement("option");
+    optAll.value = "";
+    optAll.textContent = "Todos";
+    select.appendChild(optAll);
+    (data.suppliers || []).forEach((s) => {
+      const option = document.createElement("option");
+      option.value = s.id;
+      option.textContent = `${s.name}`;
+      select.appendChild(option);
+    });
   } catch (err) {
     console.error("Error al cargar proveedores:", err);
   }
@@ -702,21 +582,16 @@ async function loadSuppliers() {
  */
 async function loadProductChart() {
   try {
-    // Get filters from global filter controls
-    const start = document.getElementById('startMonth').value;
-    const end = document.getElementById('endMonth').value;
+    // Get filters
+    const supplier = document.getElementById("supplierSelect").value;
+    const start = document.getElementById("startMonth").value;
+    const end = document.getElementById("endMonth").value;
+    // Build query string
     const params = new URLSearchParams();
-    // Supplier filter: send comma-separated ids when not all selected
-    if (selectedSupplierIds.size > 0 && selectedSupplierIds.size !== suppliersData.length) {
-      params.append('supplier', Array.from(selectedSupplierIds).join(','));
-    }
-    // Document type filter
-    if (selectedDocTypes.size > 0 && selectedDocTypes.size !== docTypesData.length) {
-      params.append('type', Array.from(selectedDocTypes).join(','));
-    }
-    if (start) params.append('start', start);
-    if (end) params.append('end', end);
-    const query = params.toString() ? `?${params.toString()}` : '';
+    if (supplier) params.append("supplier", supplier);
+    if (start) params.append("start", start);
+    if (end) params.append("end", end);
+    const query = params.toString() ? `?${params.toString()}` : "";
     const response = await fetch(`${API_BASE_URL}/analytics/products/chart${query}`);
     const data = await response.json();
     const summary = data.products || {};
@@ -781,19 +656,15 @@ async function loadProductChart() {
  */
 async function loadCategoryChart() {
   try {
-    // Apply global filters: supplier IDs, document types, start and end months
-    const start = document.getElementById('startMonth').value;
-    const end = document.getElementById('endMonth').value;
+    // Apply same filters as product chart
+    const supplier = document.getElementById("supplierSelect").value;
+    const start = document.getElementById("startMonth").value;
+    const end = document.getElementById("endMonth").value;
     const params = new URLSearchParams();
-    if (selectedSupplierIds.size > 0 && selectedSupplierIds.size !== suppliersData.length) {
-      params.append('supplier', Array.from(selectedSupplierIds).join(','));
-    }
-    if (selectedDocTypes.size > 0 && selectedDocTypes.size !== docTypesData.length) {
-      params.append('type', Array.from(selectedDocTypes).join(','));
-    }
-    if (start) params.append('start', start);
-    if (end) params.append('end', end);
-    const query = params.toString() ? `?${params.toString()}` : '';
+    if (supplier) params.append("supplier", supplier);
+    if (start) params.append("start", start);
+    if (end) params.append("end", end);
+    const query = params.toString() ? `?${params.toString()}` : "";
     const response = await fetch(`${API_BASE_URL}/analytics/categories${query}`);
     const data = await response.json();
     const categories = data.categories || {};
@@ -854,199 +725,6 @@ function getRandomColor() {
 }
 
 /**
- * Render a list of documents into the list-group container.
- * Each document is displayed as a list-group-item with its type, number, supplier,
- * issue date and total amount. A download button allows the user to obtain the PDF summary.
- * @param {Array} docs
- */
-function renderDocumentList(docs) {
-  const container = document.getElementById('docs-list');
-  container.innerHTML = '';
-  docs.forEach((doc) => {
-    const item = document.createElement('div');
-    item.classList.add('list-group-item');
-    // Header row: document type and number with download button on the right
-    const header = document.createElement('div');
-    header.classList.add('d-flex', 'justify-content-between', 'align-items-start');
-    // Title with doc type and number
-    const title = document.createElement('div');
-    const typeLabel = doc.doc_type || doc.filetype.toUpperCase();
-    const numberLabel = doc.invoice_number ? `N° ${doc.invoice_number}` : '';
-    title.innerHTML = `<strong>${typeLabel}</strong> ${numberLabel}`;
-    header.appendChild(title);
-    // Download button
-    const downloadBtn = document.createElement('button');
-    downloadBtn.classList.add('btn', 'btn-primary', 'btn-sm');
-    downloadBtn.textContent = 'Descargar';
-    downloadBtn.addEventListener('click', () => downloadDocument(doc.id, doc.filename));
-    header.appendChild(downloadBtn);
-    item.appendChild(header);
-    // Supplier name
-    const supplier = document.createElement('div');
-    supplier.classList.add('fw-bold');
-    supplier.textContent = doc.supplier_name || doc.filename || '-';
-    item.appendChild(supplier);
-    // Details: issue date and total amount
-    const details = document.createElement('small');
-    const issueDate = doc.doc_date ? new Date(doc.doc_date).toLocaleDateString() : '-';
-    const total = doc.invoice_total != null ? parseFloat(doc.invoice_total) : 0;
-    const totalStr = total ? '$' + total.toLocaleString('es-CL') : '-';
-    details.innerHTML = `Documento emitido el ${issueDate} por un monto de ${totalStr}`;
-    item.appendChild(details);
-    container.appendChild(item);
-  });
-}
-
-// -----------------------------------------------------------------------------
-// Manual product category assignment functions
-//
-/**
- * Fetch list of all unique products from the backend and build the product
- * selection list for manual categorisation. Each product can be selected via
- * checkbox. A search input allows filtering the list by name.
- */
-async function loadProductsForAssignment() {
-  try {
-    const response = await fetch(`${API_BASE_URL}/products`);
-    const data = await response.json();
-    productsData = data.products || [];
-    // Initially select nothing
-    selectedCategoryProducts = new Set();
-    buildProductAssignmentList();
-  } catch (err) {
-    console.error('Error al cargar lista de productos:', err);
-  }
-}
-
-/**
- * Build the UI list of products for assignment. Each product is rendered as a
- * checkbox within a scrollable container. Selection is tracked in
- * selectedCategoryProducts. A search input above filters visible entries.
- */
-function buildProductAssignmentList() {
-  const container = document.getElementById('categoryProductList');
-  if (!container) return;
-  container.innerHTML = '';
-  productsData.forEach((name) => {
-    const div = document.createElement('div');
-    div.classList.add('form-check');
-    const input = document.createElement('input');
-    input.type = 'checkbox';
-    input.classList.add('form-check-input');
-    // Use a safe id by replacing non-alphanumeric chars
-    const safeId = name.replace(/[^a-zA-Z0-9]/g, '_');
-    input.id = `prod_assign_${safeId}`;
-    input.value = name;
-    input.addEventListener('change', () => {
-      if (input.checked) {
-        selectedCategoryProducts.add(name);
-      } else {
-        selectedCategoryProducts.delete(name);
-      }
-    });
-    const label = document.createElement('label');
-    label.classList.add('form-check-label');
-    label.setAttribute('for', input.id);
-    label.textContent = name;
-    div.appendChild(input);
-    div.appendChild(label);
-    container.appendChild(div);
-  });
-  // Attach search handler if search input exists
-  const searchInput = document.getElementById('categoryProductSearch');
-  if (searchInput) {
-    searchInput.addEventListener('input', () => {
-      const term = searchInput.value.trim().toLowerCase();
-      productsData.forEach((name) => {
-        const safeId = name.replace(/[^a-zA-Z0-9]/g, '_');
-        const div = document.getElementById(`prod_assign_${safeId}`)?.parentElement;
-        if (div) {
-          const match = name.toLowerCase().includes(term);
-          div.style.display = match ? '' : 'none';
-        }
-      });
-    });
-  }
-}
-
-/**
- * Load available categories for the category assignment dropdown. Categories are
- * derived from the current categories analytics (keys) and any manually
- * assigned categories stored in product_categories. If no categories are
- * available, the dropdown remains empty.
- */
-async function loadCategoriesForSelect() {
-  try {
-    // Fetch categories summary to get existing category names
-    const response = await fetch(`${API_BASE_URL}/analytics/categories`);
-    const data = await response.json();
-    const categories = data.categories ? Object.keys(data.categories) : [];
-    // Also fetch manually assigned categories
-    const resp2 = await fetch(`${API_BASE_URL}/product_categories`);
-    const data2 = await resp2.json();
-    const manualCats = data2.categories ? data2.categories.map((c) => c.category) : [];
-    // Combine and deduplicate categories
-    const allCategories = Array.from(new Set([...categories, ...manualCats]));
-    const select = document.getElementById('categorySelect');
-    if (!select) return;
-    select.innerHTML = '';
-    allCategories.forEach((cat) => {
-      const opt = document.createElement('option');
-      opt.value = cat;
-      opt.textContent = cat;
-      select.appendChild(opt);
-    });
-  } catch (err) {
-    console.error('Error al cargar categorías:', err);
-  }
-}
-
-/**
- * Assign the selected products to the selected category via backend API. On
- * success, reload category chart to reflect new categorisations and clear
- * selection.
- */
-async function assignSelectedCategory() {
-  const categorySelect = document.getElementById('categorySelect');
-  if (!categorySelect) return;
-  const category = categorySelect.value;
-  if (!category) {
-    alert('Seleccione una categoría para asignar');
-    return;
-  }
-  const products = Array.from(selectedCategoryProducts);
-  if (products.length === 0) {
-    alert('Seleccione al menos un producto para asignar');
-    return;
-  }
-  try {
-    const resp = await fetch(`${API_BASE_URL}/product_categories`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ products, category }),
-    });
-    const resData = await resp.json();
-    if (!resp.ok) {
-      throw new Error(resData.error || 'Error al asignar categorías');
-    }
-    // On success, reload category chart and categories list
-    await loadCategoryChart();
-    await loadCategoriesForSelect();
-    // Clear selections
-    selectedCategoryProducts.clear();
-    // Uncheck all checkboxes
-    productsData.forEach((name) => {
-      const safeId = name.replace(/[^a-zA-Z0-9]/g, '_');
-      const checkbox = document.getElementById(`prod_assign_${safeId}`);
-      if (checkbox) checkbox.checked = false;
-    });
-    alert('Categorías asignadas con éxito');
-  } catch (err) {
-    alert(err.message);
-  }
-}
-
-/**
  * Sort the global allDocuments array by a column index.
  * The index corresponds to visible columns:
  * 0: Seleccionar (ignored), 1: Proveedor, 2: Tipo, 3: Tamaño, 4: Páginas/Etiqueta, 5: RUT,
@@ -1100,171 +778,6 @@ function sortDocumentsByColumn(idx, asc) {
     if (aKey > bKey) return asc ? 1 : -1;
     return 0;
   });
-}
-
-// -----------------------------------------------------------------------------
-// Supplier filter helper functions
-
-/**
- * Populate the supplier filter options with checkboxes based on suppliersData.
- * This function rebuilds the list whenever suppliers or selections change.
- */
-function buildSupplierOptions() {
-  const optionsContainer = document.getElementById('supplierOptions');
-  if (!optionsContainer) return;
-  optionsContainer.innerHTML = '';
-  suppliersData.forEach((s) => {
-    const div = document.createElement('div');
-    div.classList.add('form-check');
-    const input = document.createElement('input');
-    input.classList.add('form-check-input');
-    input.type = 'checkbox';
-    input.id = `supplier_option_${s.id}`;
-    input.value = s.id;
-    input.checked = selectedSupplierIds.has(s.id);
-    input.addEventListener('change', () => {
-      if (input.checked) {
-        selectedSupplierIds.add(s.id);
-      } else {
-        selectedSupplierIds.delete(s.id);
-      }
-      updateSelectAllCheckbox();
-      updateSupplierFilterText();
-      applySupplierFilter();
-    });
-    const label = document.createElement('label');
-    label.classList.add('form-check-label');
-    label.setAttribute('for', input.id);
-    label.textContent = s.name;
-    div.appendChild(input);
-    div.appendChild(label);
-    optionsContainer.appendChild(div);
-  });
-  updateSelectAllCheckbox();
-  updateSupplierFilterText();
-}
-
-/**
- * Update the "Seleccionar todo" checkbox state based on selectedSupplierIds.
- */
-function updateSelectAllCheckbox() {
-  const selectAll = document.getElementById('supplierSelectAll');
-  if (!selectAll) return;
-  selectAll.checked = selectedSupplierIds.size === suppliersData.length;
-}
-
-/**
- * Update the supplier filter button text based on the selection count.
- */
-function updateSupplierFilterText() {
-  const textEl = document.getElementById('supplierFilterText');
-  if (!textEl) return;
-  if (selectedSupplierIds.size === 0 || selectedSupplierIds.size === suppliersData.length) {
-    textEl.textContent = 'Todos';
-  } else {
-    textEl.textContent = `${selectedSupplierIds.size} seleccionados`;
-  }
-}
-
-/**
- * Apply the supplier filter by reloading documents and charts.
- */
-async function applySupplierFilter() {
-  await loadDocuments();
-  await loadProductChart();
-  await loadCategoryChart();
-}
-
-// -----------------------------
-// Document type filter functions
-// -----------------------------
-
-/**
- * Fetch the list of document types from backend and build the filter options.
- */
-async function loadDocumentTypes() {
-  try {
-    const response = await fetch(`${API_BASE_URL}/document_types`);
-    const data = await response.json();
-    docTypesData = data.types || [];
-    // Select all types by default if none selected yet
-    if (selectedDocTypes.size === 0) {
-      docTypesData.forEach((t) => selectedDocTypes.add(t));
-    }
-    buildDocTypeOptions();
-  } catch (err) {
-    console.error('Error al cargar tipos de documento:', err);
-  }
-}
-
-/**
- * Build the checkboxes inside the document type filter dropdown.
- */
-function buildDocTypeOptions() {
-  const container = document.getElementById('docTypeOptions');
-  if (!container) return;
-  container.innerHTML = '';
-  docTypesData.forEach((type) => {
-    const div = document.createElement('div');
-    div.classList.add('form-check');
-    const input = document.createElement('input');
-    input.type = 'checkbox';
-    input.classList.add('form-check-input');
-    const safeId = type.replace(/[^a-zA-Z0-9]/g, '_');
-    input.id = `doctype_option_${safeId}`;
-    input.value = type;
-    input.checked = selectedDocTypes.has(type);
-    input.addEventListener('change', () => {
-      if (input.checked) {
-        selectedDocTypes.add(type);
-      } else {
-        selectedDocTypes.delete(type);
-      }
-      updateDocTypeSelectAllCheckbox();
-      updateDocTypeFilterText();
-      applyDocTypeFilter();
-    });
-    const label = document.createElement('label');
-    label.classList.add('form-check-label');
-    label.setAttribute('for', input.id);
-    label.textContent = type;
-    div.appendChild(input);
-    div.appendChild(label);
-    container.appendChild(div);
-  });
-  updateDocTypeSelectAllCheckbox();
-  updateDocTypeFilterText();
-}
-
-/**
- * Update the select-all checkbox for document types based on current selection.
- */
-function updateDocTypeSelectAllCheckbox() {
-  const selectAll = document.getElementById('docTypeSelectAll');
-  if (!selectAll) return;
-  selectAll.checked = selectedDocTypes.size === docTypesData.length;
-}
-
-/**
- * Update the document type filter button text to reflect selection state.
- */
-function updateDocTypeFilterText() {
-  const textEl = document.getElementById('docTypeFilterText');
-  if (!textEl) return;
-  if (selectedDocTypes.size === 0 || selectedDocTypes.size === docTypesData.length) {
-    textEl.textContent = 'Todos';
-  } else {
-    textEl.textContent = `${selectedDocTypes.size} seleccionados`;
-  }
-}
-
-/**
- * Apply the document type filter by reloading documents and charts.
- */
-async function applyDocTypeFilter() {
-  await loadDocuments();
-  await loadProductChart();
-  await loadCategoryChart();
 }
 
 /**

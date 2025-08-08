@@ -1,9 +1,0 @@
-{
-  "build": {
-    "builder": "DOCKERFILE",
-    "dockerfilePath": "Dockerfile"
-  },
-  "deploy": {
-    "startCommand": "python backend/app.py"
-  }
-}
