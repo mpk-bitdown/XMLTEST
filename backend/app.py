@@ -25,6 +25,9 @@ from flask_cors import CORS
 from sqlalchemy.exc import IntegrityError
 from werkzeug.utils import secure_filename
 import os
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 5000))  # usa el puerto que Railway define
+    app.run(host="0.0.0.0", port=port)
 import json
 from datetime import datetime
 from typing import Any, Dict
