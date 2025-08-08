@@ -1,0 +1,28 @@
+# Entornos virtuales
+venv/
+ENV/
+env/
+
+# Archivos de Python compilados
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Archivos de configuración del editor
+.vscode/
+.idea/
+
+# Archivos del sistema
+.DS_Store
+
+# Archivos de base de datos locales
+*.sqlite3
+
+# Logs
+*.log
+
+# node_modules (en caso de tener frontend)
+node_modules/
+
+# Archivos de entorno
+.env

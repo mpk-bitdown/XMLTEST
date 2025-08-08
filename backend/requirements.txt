@@ -1,0 +1,12 @@
+Flask==3.0.0
+Flask-SQLAlchemy==3.0.4
+Flask-Cors==4.0.0
+PyPDF2==3.0.1
+pandas==2.2.2
+openpyxl==3.1.2
+fpdf2==2.7.6
+# scikit-learn is optional. It is used to train a simple classifier for product
+# categorisation. If scikit-learn cannot be installed (e.g. due to Python
+# version incompatibility), the application will gracefully fall back to heuristic
+# categorisation and manual assignments. To enable learning functionality,
+# optionally install scikit-learn separately (e.g. pip install scikit-learn).
